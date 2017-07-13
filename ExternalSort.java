@@ -27,19 +27,22 @@ public class ExternalSort {
 
     public static final int RANGE_MIN = (int) -1e5, RANGE_MAX = (int) 1e5;
     public static final int OFFSET = (int) 1e5;
-    public static final int BLOCK_SIZE = (int) (1<<19);
+    public static final int BLOCK_SIZE = (int) (1e5);
     public static final int INT_BYTES = 4;
 
+    public static DataInputStream getInp(String file)throws FileNotFoundException, IOException {
+        return new DataInputStream(new BufferedInputStream(new FileInputStream(file)));
+    }
+    public static DataOutputStream getOut(String file)throws FileNotFoundException, IOException {
+        return new DataOutputStream(new BufferedOutputStream(new FileOutputStream(file,false)));
+    }
     public static void readFile(String fil)throws FileNotFoundException, IOException {
-        RandomAccessFile raf = new RandomAccessFile(fil,"rw");
-        DataInputStream dis = new DataInputStream(
-                new BufferedInputStream(new FileInputStream(raf.getFD())));
+        DataInputStream dis = getInp(fil);
         while(dis.available()>0){
-            System.out.print(dis.readInt());
+            System.out.print(dis.readInt()+" ");
         }
         System.out.println();
         dis.close();
-        raf.close();
     }
     public static void countSort(String f1,
             String f2,
@@ -48,13 +51,9 @@ public class ExternalSort {
             int[] cnt) throws 
                     FileNotFoundException, IOException {
 
-        RandomAccessFile f = new RandomAccessFile(f1,"rw");
-        DataInputStream dis = new DataInputStream(
-                new BufferedInputStream(new FileInputStream(f.getFD())));
         //RandomAccessFile raf = new RandomAccessFile("test4e.dat", "rw");
         //System.out.println(min + " vs " + max);
-        DataOutputStream dos = new DataOutputStream(
-                new BufferedOutputStream(new FileOutputStream(f1,false)));
+        DataOutputStream dos = getOut(f1);
         for(int i = min; i <= max; i++){
             for(int j = 0; j < cnt[OFFSET+i]; j++){
                 //System.out.println("Printedddd");
@@ -62,39 +61,28 @@ public class ExternalSort {
             }
         }
         dos.flush();
-        dis.close();
         dos.close();
         //System.out.println("The checksum is: "+checkSum(f1));
 
     }
     public static void copyFromTo(String fil1, String fil2)throws FileNotFoundException, IOException {
-        RandomAccessFile raf1 = new RandomAccessFile(fil1,"r");
-        RandomAccessFile raf2 = new RandomAccessFile(fil2,"rw");
-        DataInputStream dis = new DataInputStream(
-                new BufferedInputStream(new FileInputStream(raf1.getFD())));
-        DataOutputStream dos = new DataOutputStream(
-                new BufferedOutputStream(new FileOutputStream(fil2,false)));
+        DataInputStream dis = getInp(fil1);
+        DataOutputStream dos = getOut(fil2);
         while(dis.available()>0){
             dos.writeInt(dis.readInt());
         }
         dos.flush();
         dis.close();
         dos.close();
-        raf1.close();
-        raf2.close();
     }
     public static void mergeSort(String file1,
             String file2,
-            String fileA,
-            String fileB,
-            int blockSize) throws FileNotFoundException, IOException {
-
-        RandomAccessFile rafFile1 = new RandomAccessFile(file1,"rw");
-        int numOfInts = (int)(rafFile1.length() >> 2);
+            int blockSize,
+            int numOfInts) throws FileNotFoundException, IOException {
         int numOfBlocks = (int)Math.ceil((double)numOfInts / (double)blockSize);
 
-        DataOutputStream dos = new DataOutputStream(
-                new BufferedOutputStream(new FileOutputStream(file2,false)));
+        DataOutputStream dos = getOut(file2);
+        //System.out.println(file2);
         PriorityQueue<PriorityQueueElement> pq=new PriorityQueue<PriorityQueueElement>();
         DataInputStream[] dis = new DataInputStream[numOfBlocks];
 
@@ -107,10 +95,8 @@ public class ExternalSort {
             //startBlock[i]=i*blockSize;
             //endBlock[i]=Math.min((i+1)*blockSize,numOfInts);
             //System.out.println(startBlock[i] + " " + endBlock[i] + " ");
-            dis[i] = new DataInputStream(
-                    new BufferedInputStream(new FileInputStream(file1)));
-            dis[i].skipBytes(INT_BYTES*i*blockSize);
-
+            dis[i] = getInp(file1);
+            dis[i].skipBytes(i*blockSize<<2);
             //System.out.println(dis[i].readInt());
             pq.add(new PriorityQueueElement(dis[i].readInt(), i));
         }
@@ -130,41 +116,59 @@ public class ExternalSort {
         dos.flush();
         //System.out.println("n="+numOfBlocks+" ni="+numOfInts);
     }
+    public static void ezSort(String f1, int numOfInts)throws FileNotFoundException, IOException {
+        DataInputStream dis = getInp(f1);
+        int[] arr = new int[numOfInts];
+        for(int i=0;i<numOfInts;i++){
+            arr[i]=dis.readInt();
+        }
+        DataOutputStream dos = getOut(f1);
+        Arrays.sort(arr);
+        for(int i:arr){
+            dos.writeInt(i);
+        }
+        dos.flush();
+    }
     public static void sort(String f1, String f2) throws FileNotFoundException, IOException {
-        RandomAccessFile f = null;
-        DataInputStream d = null;
-        RandomAccessFile raf2 = new RandomAccessFile(f2,"rw");
-        f = new RandomAccessFile(f1,"r");
-        int min=Integer.MAX_VALUE, max=Integer.MIN_VALUE;
-        d = new DataInputStream(
-                new BufferedInputStream(new FileInputStream(f.getFD())));
-        DataOutputStream dos = new DataOutputStream(
-                new BufferedOutputStream(new FileOutputStream(f2,false)));
+        RandomAccessFile f = new RandomAccessFile(f1,"r");
+        DataInputStream dis = getInp(f1);
+        DataOutputStream dos = getOut(f2);
 
+        int numOfInts = (int)(f.length() >> 2);
+
+        //System.out.println(numOfInts);
+        //System.out.println(BLOCK_SIZE);
+        if(numOfInts<BLOCK_SIZE){
+            ezSort(f1, numOfInts);
+            return;
+        }
+
+        int min=Integer.MAX_VALUE, max=Integer.MIN_VALUE;
         int[] arr=new int[BLOCK_SIZE];
         int[] cntSort= new int[2*OFFSET+1];
         int k,prev=Integer.MIN_VALUE;
         int cntElements=0;
-        int numOfInts = (int)(f.length() >> 2);
         boolean sorted=true;
         boolean smallEnough=true;
         //System.out.println(f.length());
         //System.out.println(f.readInt()+ " ibaah " +f.readInt());
         for(int i=0; i<numOfInts; i++){
-            k=d.readInt();
+            k=dis.readInt();
             arr[cntElements]=k;
             cntElements++;
-            if(BLOCK_SIZE==cntElements){
+            if(BLOCK_SIZE==cntElements || i==numOfInts-1){
+                //assert(smallEnough==false);
                 if(smallEnough==false){
-                    Arrays.sort(arr);
-                    for(int p:arr){
-                        dos.writeInt(p);
+                    Arrays.sort(arr, 0, cntElements);
+                    for(int p=0; p<cntElements; p++){
+                        //System.out.println(i);
+                        dos.writeInt(arr[p]);
                     }
                     dos.flush();
                 }
                 cntElements=0;
             }
-            if(smallEnough == true && RANGE_MIN<=k && RANGE_MAX>=k){
+            if(smallEnough==true && RANGE_MIN<=k && RANGE_MAX>=k){
                 cntSort[OFFSET+k]++;
             }
             else 
@@ -177,37 +181,15 @@ public class ExternalSort {
                     max=k;
             }
         }
-        //System.out.println(f.length());
-        if(cntElements!=0){
-            if(f.length()<=INT_BYTES*BLOCK_SIZE){
-                //thats the case when all input numbers are less than 1e5
-                dos.close();
-                dos = new DataOutputStream(
-                    new BufferedOutputStream(new FileOutputStream(f1,false)));
-
-            }
-            Arrays.sort(arr,0,cntElements);
-            for(int i=0; i<cntElements; i++){
-                //System.out.println(i);
-                dos.writeInt(arr[i]);
-            }
-            dos.flush();
-            cntElements=0;
-            //thats the case when all input numbers are less than 1e5
-            if(f.length()<=INT_BYTES*BLOCK_SIZE)
-                return;
-        }
-        //System.out.println();
-        //System.out.println(cnt+"\n"+min+" "+max);
         if (smallEnough) {
             countSort(f1,f2,min,max,cntSort);
             return;
         }
         //countSort(f1,f2,min,max);
         //prepare(f1,f2);
-        mergeSort(f2,f1,f1,f2,BLOCK_SIZE);
+        mergeSort(f2,f1,BLOCK_SIZE,numOfInts);
         f.close();
-        d.close();
+        dis.close();
     }
 
     private static String byteToHex(byte b) {
